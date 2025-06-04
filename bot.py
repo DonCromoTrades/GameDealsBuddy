@@ -66,7 +66,9 @@ def fetch_steam_deals() -> List[dict]:
     logging.info('Fetching Steam specials')
     deals = []
     try:
-        data = requests.get(STEAM_SPECIALS_URL, timeout=30).json()
+        resp = requests.get(STEAM_SPECIALS_URL, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
         items = data.get('specials', {}).get('items', [])
         for item in items:
             if item.get('discount_percent', 0) >= 50 or item.get('final_price', 1) == 0:
@@ -78,6 +80,8 @@ def fetch_steam_deals() -> List[dict]:
                     'final_price': item.get('final_price', 0) / 100.0,
                     'currency': item.get('currency', 'USD'),
                 })
+    except requests.HTTPError as e:
+        logging.error('HTTP error fetching Steam deals: %s', e)
     except Exception as e:
         logging.error('Failed to fetch Steam deals: %s', e)
     return deals
@@ -86,15 +90,25 @@ def fetch_steam_deals() -> List[dict]:
 def fetch_steam_details(app_id: int) -> dict:
     try:
         params = {'appids': app_id, 'l': 'en'}
-        detail = requests.get(STEAM_APPDETAILS_URL, params=params, timeout=30).json()
+        resp = requests.get(STEAM_APPDETAILS_URL, params=params, timeout=30)
+        resp.raise_for_status()
+        detail = resp.json()
         data = detail[str(app_id)]['data']
         description = data.get('short_description') or ''
+    except requests.HTTPError as e:
+        logging.error('HTTP error fetching details for %s: %s', app_id, e)
+        description = ''
     except Exception as e:
         logging.error('Failed to fetch details for %s: %s', app_id, e)
         description = ''
     try:
-        reviews = requests.get(STEAM_APPREVIEWS_URL.format(app_id=app_id), timeout=30).json()
+        resp = requests.get(STEAM_APPREVIEWS_URL.format(app_id=app_id), timeout=30)
+        resp.raise_for_status()
+        reviews = resp.json()
         rating = reviews.get('query_summary', {}).get('review_score_desc', 'Unknown')
+    except requests.HTTPError as e:
+        logging.error('HTTP error fetching reviews for %s: %s', app_id, e)
+        rating = 'Unknown'
     except Exception as e:
         logging.error('Failed to fetch reviews for %s: %s', app_id, e)
         rating = 'Unknown'
@@ -105,7 +119,9 @@ def fetch_epic_deals() -> List[dict]:
     logging.info('Fetching Epic Games deals')
     deals = []
     try:
-        data = requests.get(EPIC_DEALS_URL, timeout=30).json()
+        resp = requests.get(EPIC_DEALS_URL, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
         elements = data.get('data', {}).get('Catalog', {}).get('searchStore', {}).get('elements', [])
         for el in elements:
             price_info = el.get('price', {}).get('totalPrice', {})
@@ -121,6 +137,8 @@ def fetch_epic_deals() -> List[dict]:
                     'currency': price_info.get('currencyCode', 'USD'),
                     'description': el.get('description', '')
                 })
+    except requests.HTTPError as e:
+        logging.error('HTTP error fetching Epic deals: %s', e)
     except Exception as e:
         logging.error('Failed to fetch Epic deals: %s', e)
     return deals
