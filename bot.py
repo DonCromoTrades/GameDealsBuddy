@@ -1,5 +1,6 @@
 import os
 import time
+import json
 import logging
 from typing import List, Optional
 import requests
@@ -14,6 +15,44 @@ logging.basicConfig(level=logging.INFO)
 
 DISCORD_WEBHOOK_URL = os.getenv('DISCORD_WEBHOOK_URL')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
+POSTED_DEALS_FILE = os.getenv('POSTED_DEALS_FILE', 'posted_deals.json')
+RESET_CACHE_ON_STARTUP = os.getenv('RESET_CACHE_ON_STARTUP', 'false').lower() in ('1', 'true', 'yes')
+CACHE_RESET_HOURS = float(os.getenv('CACHE_RESET_HOURS', '0'))
+
+def load_cache() -> dict:
+    if not os.path.exists(POSTED_DEALS_FILE):
+        return {'Steam': set(), 'Epic': set()}
+    try:
+        with open(POSTED_DEALS_FILE, 'r') as f:
+            data = json.load(f)
+        return {
+            'Steam': set(str(x) for x in data.get('Steam', [])),
+            'Epic': set(str(x) for x in data.get('Epic', []))
+        }
+    except Exception as e:
+        logging.error('Failed to load deal cache: %s', e)
+        return {'Steam': set(), 'Epic': set()}
+
+
+def save_cache(cache: dict):
+    try:
+        with open(POSTED_DEALS_FILE, 'w') as f:
+            json.dump({'Steam': list(cache['Steam']), 'Epic': list(cache['Epic'])}, f)
+    except Exception as e:
+        logging.error('Failed to save deal cache: %s', e)
+
+
+def reset_cache() -> dict:
+    cache = {'Steam': set(), 'Epic': set()}
+    save_cache(cache)
+    logging.info('Deal cache has been reset')
+    return cache
+
+
+POSTED_DEALS = load_cache()
+if RESET_CACHE_ON_STARTUP:
+    POSTED_DEALS = reset_cache()
 
 STEAM_SPECIALS_URL = 'https://store.steampowered.com/api/featuredcategories'
 STEAM_APPDETAILS_URL = 'https://store.steampowered.com/api/appdetails'
@@ -128,6 +167,9 @@ def fetch_epic_deals() -> List[dict]:
 
 def process_steam_deals():
     for deal in fetch_steam_deals():
+        deal_id = str(deal['id'])
+        if deal_id in POSTED_DEALS['Steam']:
+            continue
         details = fetch_steam_details(deal['id'])
         summary = summarize_text(details['description'])
         message = (f"**{deal['name']}** on Steam - {deal['discount_percent']}% off\n"
@@ -135,28 +177,39 @@ def process_steam_deals():
                    f"Rating: {details['rating']}\n"
                    f"Summary: {summary}")
         post_to_discord(message)
+        POSTED_DEALS['Steam'].add(deal_id)
 
 
 def process_epic_deals():
     for deal in fetch_epic_deals():
+        deal_id = str(deal['id'])
+        if deal_id in POSTED_DEALS['Epic']:
+            continue
         summary = summarize_text(deal.get('description', ''))
         message = (f"**{deal['name']}** on Epic Games - {deal['discount_percent']}% off\n"
                    f"Price: {deal['final_price']} {deal['currency']}\n"
                    f"Rating: N/A\n"
                    f"Summary: {summary}")
         post_to_discord(message)
+        POSTED_DEALS['Epic'].add(deal_id)
 
 
 def run_once():
     process_steam_deals()
     process_epic_deals()
+    save_cache(POSTED_DEALS)
 
 
 def main():
     interval = int(os.getenv('CHECK_INTERVAL_HOURS', '8'))
     logging.info('Starting deal bot - interval %s hours', interval)
+    last_reset = time.time()
     while True:
         run_once()
+        if CACHE_RESET_HOURS > 0 and time.time() - last_reset >= CACHE_RESET_HOURS * 3600:
+            global POSTED_DEALS
+            POSTED_DEALS = reset_cache()
+            last_reset = time.time()
         logging.info('Sleeping for %s hours', interval)
         time.sleep(interval * 3600)
 
