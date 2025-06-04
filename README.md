@@ -7,9 +7,9 @@ It can post game deals to a Discord channel with a brief AI-generated summary an
 
 1. Install the required Python packages:
    ```bash
-   pip install requests openai
+   pip install -r requirements.txt
    ```
-   (The `openai` package is optional but enables AI summaries.)
+   (The `openai` package is optional but included for convenience.)
 
 2. Set the following environment variables:
    - `DISCORD_WEBHOOK_URL` – Discord webhook URL for the channel to post deals.
