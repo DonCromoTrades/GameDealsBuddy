@@ -1,7 +1,7 @@
 import os
 import time
 import logging
-from typing import List, Optional
+from typing import List
 import requests
 
 try:
