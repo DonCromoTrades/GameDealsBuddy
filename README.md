@@ -15,6 +15,9 @@ It can post game deals to a Discord channel with a brief AI-generated summary an
    - `DISCORD_WEBHOOK_URL` – Discord webhook URL for the channel to post deals.
    - `OPENAI_API_KEY` – API key for OpenAI (optional). If not provided, a simple summary is used.
    - `CHECK_INTERVAL_HOURS` – How often to check for new deals (default: `8`).
+   - `POSTED_DEALS_FILE` – File path for storing already posted deal IDs (default: `posted_deals.json`).
+   - `RESET_CACHE_ON_STARTUP` – If set to `true`, clears the posted deals cache when the bot starts.
+   - `CACHE_RESET_HOURS` – Interval in hours to automatically reset the cache (optional).
 
 ## Running
 
